@@ -1,7 +1,6 @@
 package org.opencdmp.deposit.dataverse.service.dataverse;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import gr.cite.tools.exception.MyApplicationException;
 import gr.cite.tools.logging.LoggerService;
 import gr.cite.tools.logging.MapLogEntry;
@@ -28,6 +27,8 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.*;
 import java.util.*;
@@ -56,7 +57,7 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
     }
 
     @Override
-    public String deposit(PlanDepositModel planDepositModel) throws Exception {
+    public String deposit(PlanDepositModel planDepositModel) {
 
         DepositConfiguration depositConfiguration = this.getConfiguration();
 
@@ -84,7 +85,11 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
             } catch (HttpClientErrorException | HttpServerErrorException ex) {
                 logger.error(ex.getMessage(), ex);
                 Map<String, String> parsedException = objectMapper.readValue(ex.getResponseBodyAsString(), Map.class);
-                throw new IOException(parsedException.get("message"), ex);
+                try {
+                    throw new IOException(parsedException.get("message"), ex);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
 
         }
@@ -94,7 +99,7 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
     }
 
 
-    private String depositFirst(PlanModel planModel, String token) throws IOException {
+    private String depositFirst(PlanModel planModel, String token) {
         DataverseDataset dataset = this.dataverseBuilder.build(planModel);
 
         String url = this.dataverseServiceProperties.getDepositConfiguration().getRepositoryUrl() + "dataverses/" + this.dataverseBuilder.buildDataverseIdentifier(planModel) + "/datasets?doNotValidate=true";
@@ -116,7 +121,7 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
         return doi;
     }
 
-    private void uploadFiles(PlanModel planModel, String doi, String token) throws IOException {
+    private void uploadFiles(PlanModel planModel, String doi, String token) {
         if (planModel.getPdfFile() != null) this.uploadFile(planModel.getPdfFile(), doi, token);
         if (planModel.getRdaJsonFile() != null) this.uploadFile(planModel.getRdaJsonFile(), doi, token);
         if (planModel.getSupportingFilesZip() != null) this.uploadFile(planModel.getSupportingFilesZip(), doi, token);
@@ -187,7 +192,7 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
         if (publishResponse == null) throw new UnsupportedOperationException("Failed to publish to Dataverse");
     }
 
-    private String depositNewVersion(PlanModel planModel, String previousDOI, String token) throws IOException {
+    private String depositNewVersion(PlanModel planModel, String previousDOI, String token) {
         DataverseDataset dataset = this.dataverseBuilder.build(planModel);
 
         String url = this.dataverseServiceProperties.getDepositConfiguration().getRepositoryUrl() + "datasets/:persistentId/versions/:draft?persistentId=" + previousDOI;

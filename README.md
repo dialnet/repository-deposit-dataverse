@@ -6,6 +6,8 @@
 
 The **Dataverse** repository is a widely-used open-access research repository. By using the **repository-deposit-dataverse** service, OpenCDMP users can directly deposit their DMPs into Dataverse, making the plans citeable and publicly available. The service supports both **system-based** and **user-based** depositions depending on the configuration.
 
+**Supported Dataverse version:** 6.9
+
 **Supported operations:**
 - ✅ Deposit plans to Dataverse
 - ✅ Automatic DOI minting
