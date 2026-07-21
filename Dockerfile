@@ -14,7 +14,10 @@ WORKDIR /build/
 RUN mvn dependency:go-offline
 RUN mvn clean package
 ######################################## Run Stage ########################################
-FROM eclipse-temurin:21-jre-alpine
+# glibc-based runtime: netty's native libs (quic/http3, epoll) are built for glibc and
+# require libgcc_s.so.1, which the musl-based alpine image lacks. Using the Debian/Ubuntu
+# temurin image avoids UnsatisfiedLinkError when reactor-netty initializes the HTTPS client.
+FROM eclipse-temurin:21-jre
 
 ARG PROFILE
 ENV SERVER_PORT=8080
