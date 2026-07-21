@@ -1,7 +1,7 @@
 web:
   security:
     enabled: true
-    authorized-endpoints: [ api ]
+    authorized-endpoints: [ api, t ]
     allowed-endpoints: [ actuator ]
     idp:
       api-key:

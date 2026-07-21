@@ -58,6 +58,11 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
 
     @Override
     public String deposit(PlanDepositModel planDepositModel) {
+        return this.deposit(planDepositModel, null);
+    }
+
+    @Override
+    public String deposit(PlanDepositModel planDepositModel, String collectionAliasOverride) {
 
         DepositConfiguration depositConfiguration = this.getConfiguration();
 
@@ -77,7 +82,7 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
             try {
 
                 if (previousDOI == null) {
-                    return depositFirst(planDepositModel.getPlanModel(), token);
+                    return depositFirst(planDepositModel.getPlanModel(), token, collectionAliasOverride);
                 } else {
                     return depositNewVersion(planDepositModel.getPlanModel(), previousDOI, token);
                 }
@@ -99,10 +104,14 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
     }
 
 
-    private String depositFirst(PlanModel planModel, String token) {
+    private String depositFirst(PlanModel planModel, String token, String collectionAliasOverride) {
         DataverseDataset dataset = this.dataverseBuilder.build(planModel);
 
-        String url = this.dataverseServiceProperties.getDepositConfiguration().getRepositoryUrl() + "dataverses/" + this.dataverseBuilder.buildDataverseIdentifier(planModel) + "/datasets?doNotValidate=true";
+        String collectionAlias = (collectionAliasOverride != null && !collectionAliasOverride.isBlank())
+                ? collectionAliasOverride
+                : this.dataverseBuilder.buildDataverseIdentifier(planModel);
+
+        String url = this.dataverseServiceProperties.getDepositConfiguration().getRepositoryUrl() + "dataverses/" + collectionAlias + "/datasets?doNotValidate=true";
 
         Map<String, Object> response = this.getWebClient().post().uri(url).headers(httpHeaders -> {
                     httpHeaders.set("X-Dataverse-key", token);
