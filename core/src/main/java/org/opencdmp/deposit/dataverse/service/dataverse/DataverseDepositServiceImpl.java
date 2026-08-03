@@ -156,7 +156,7 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
         ContentDisposition contentDisposition = ContentDisposition
                 .builder("form-data")
                 .name("file")
-                .filename(fileEnvelopeModel.getFilename())
+                .filename(sanitizeFilename(fileEnvelopeModel.getFilename()))
                 .build();
         fileMap.add(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
         HttpEntity<byte[]> fileEntity = new HttpEntity<>(fileBytes, fileMap);
@@ -170,6 +170,18 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
 
         RestTemplate restTemplate = new RestTemplate();
         ResponseEntity<Object> resp = restTemplate.postForEntity(url, requestEntity, Object.class);
+    }
+
+    /**
+     * Dataverse validates the file label (FileMetadata) and rejects names containing
+     * characters such as : / \ * ? " < > | ; # & ~ (the file name is derived from the plan
+     * title, which may include them), causing a 400 "Failed to add file to dataset". Replace
+     * any forbidden/control character with '_' so the upload always passes validation.
+     */
+    private static String sanitizeFilename(String filename) {
+        if (filename == null || filename.isBlank()) return "deposit-file";
+        String sanitized = filename.replaceAll("[\\\\/:*?\"<>|;#&~\\p{Cntrl}]", "_").trim();
+        return sanitized.isBlank() ? "deposit-file" : sanitized;
     }
 
     private void deleteFile(int fileId, String token){
