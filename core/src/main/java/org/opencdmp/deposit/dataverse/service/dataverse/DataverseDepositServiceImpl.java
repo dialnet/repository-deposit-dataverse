@@ -31,6 +31,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.*;
+import java.text.Normalizer;
 import java.util.*;
 
 @Component
@@ -173,14 +174,23 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
     }
 
     /**
-     * Dataverse validates the file label (FileMetadata) and rejects names containing
-     * characters such as : / \ * ? " < > | ; # & ~ (the file name is derived from the plan
-     * title, which may include them), causing a 400 "Failed to add file to dataset". Replace
-     * any forbidden/control character with '_' so the upload always passes validation.
+     * Builds a safe file name for the Dataverse upload. The name is derived from the plan
+     * title, so it may contain accents and characters that break the deposit:
+     *  - Accents/diacritics are folded to ASCII (á→a, ñ→n, …). The multipart
+     *    Content-Disposition filename is not reliably UTF-8 (Jersey reads part headers as
+     *    ISO-8859-1), so non-ASCII names arrive as mojibake ("España" → "EspaÃ±a"). The
+     *    dataset title/metadata keep their accents; only the attached file name is folded.
+     *  - Characters Dataverse forbids in file labels (: / \ * ? " < > | ; # & ~) and any
+     *    remaining non-printable-ASCII/control chars are replaced with '_', otherwise the
+     *    FileMetadata validation fails with 400 "Failed to add file to dataset".
      */
     private static String sanitizeFilename(String filename) {
         if (filename == null || filename.isBlank()) return "deposit-file";
-        String sanitized = filename.replaceAll("[\\\\/:*?\"<>|;#&~\\p{Cntrl}]", "_").trim();
+        String sanitized = Normalizer.normalize(filename, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .replaceAll("[^\\x20-\\x7E]", "_")
+                .replaceAll("[\\\\/:*?\"<>|;#&~]", "_")
+                .trim();
         return sanitized.isBlank() ? "deposit-file" : sanitized;
     }
 
