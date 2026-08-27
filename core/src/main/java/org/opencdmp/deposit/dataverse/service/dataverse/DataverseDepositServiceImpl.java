@@ -18,6 +18,8 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.*;
+import org.springframework.http.converter.FormHttpMessageConverter;
+import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -31,6 +33,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.*;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.*;
 
 @Component
@@ -38,6 +43,8 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
     private static final LoggerService logger = new LoggerService(LoggerFactory.getLogger(DataverseDepositServiceImpl.class));
 
     public static final String CONFIGURATION_FIELD_ACCESS_TOKEN = "dataverse-access-token";
+    private static final String FILENAME_FORBIDDEN_CHARS = "\\/:*?\"<>|;#&~";
+    private static final String FILENAME_FALLBACK = "deposit-file";
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private final DataverseServiceProperties dataverseServiceProperties;
@@ -58,6 +65,11 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
 
     @Override
     public String deposit(PlanDepositModel planDepositModel) {
+        return this.deposit(planDepositModel, null);
+    }
+
+    @Override
+    public String deposit(PlanDepositModel planDepositModel, String collectionAliasOverride) {
 
         DepositConfiguration depositConfiguration = this.getConfiguration();
 
@@ -77,7 +89,7 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
             try {
 
                 if (previousDOI == null) {
-                    return depositFirst(planDepositModel.getPlanModel(), token);
+                    return depositFirst(planDepositModel.getPlanModel(), token, collectionAliasOverride);
                 } else {
                     return depositNewVersion(planDepositModel.getPlanModel(), previousDOI, token);
                 }
@@ -99,10 +111,14 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
     }
 
 
-    private String depositFirst(PlanModel planModel, String token) {
+    private String depositFirst(PlanModel planModel, String token, String collectionAliasOverride) {
         DataverseDataset dataset = this.dataverseBuilder.build(planModel);
 
-        String url = this.dataverseServiceProperties.getDepositConfiguration().getRepositoryUrl() + "dataverses/" + this.dataverseBuilder.buildDataverseIdentifier(planModel) + "/datasets?doNotValidate=true";
+        String collectionAlias = (collectionAliasOverride != null && !collectionAliasOverride.isBlank())
+                ? collectionAliasOverride
+                : this.dataverseBuilder.buildDataverseIdentifier(planModel);
+
+        String url = this.dataverseServiceProperties.getDepositConfiguration().getRepositoryUrl() + "dataverses/" + collectionAlias + "/datasets?doNotValidate=true";
 
         Map<String, Object> response = this.getWebClient().post().uri(url).headers(httpHeaders -> {
                     httpHeaders.set("X-Dataverse-key", token);
@@ -147,7 +163,7 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
         ContentDisposition contentDisposition = ContentDisposition
                 .builder("form-data")
                 .name("file")
-                .filename(fileEnvelopeModel.getFilename())
+                .filename(sanitizeFilename(fileEnvelopeModel.getFilename()))
                 .build();
         fileMap.add(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString());
         HttpEntity<byte[]> fileEntity = new HttpEntity<>(fileBytes, fileMap);
@@ -159,8 +175,59 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
 
         String url = this.dataverseServiceProperties.getDepositConfiguration().getRepositoryUrl() + "datasets/:persistentId/add?persistentId=" + doi;
 
+        ResponseEntity<Object> resp = this.getRestTemplate().postForEntity(url, requestEntity, Object.class);
+    }
+
+    /**
+     * Spring writes the multipart part headers with the form converter charset (UTF-8 by
+     * default), but Dataverse parses them as ISO-8859-1, so accented file names arrived
+     * corrupted ("España" -> "EspaÃ±a"). Writing them as ISO-8859-1 makes Dataverse decode
+     * the original characters back, which keeps the accents in the deposited file names.
+     */
+    private RestTemplate getRestTemplate() {
         RestTemplate restTemplate = new RestTemplate();
-        ResponseEntity<Object> resp = restTemplate.postForEntity(url, requestEntity, Object.class);
+        for (HttpMessageConverter<?> converter : restTemplate.getMessageConverters()) {
+            if (converter instanceof FormHttpMessageConverter formConverter) formConverter.setCharset(StandardCharsets.ISO_8859_1);
+        }
+        return restTemplate;
+    }
+
+    /**
+     * Builds a safe file name for the Dataverse upload. The name is derived from the plan
+     * title, so it may contain characters that break the deposit:
+     *  - Dataverse validates the file label (FileMetadata) and rejects : / \ * ? " < > | ; # & ~,
+     *    which failed the upload with 400 "Failed to add file to dataset". Those are replaced
+     *    with '_', as are control characters.
+     *  - The part header travels as ISO-8859-1 (see {@link #getRestTemplate()}), so accented
+     *    latin characters are kept as-is, while anything outside that charset (typographic
+     *    punctuation, non-latin scripts) is folded to its closest ASCII form, or '_' if it has
+     *    none, since it could not be represented on the wire.
+     */
+    private static String sanitizeFilename(String filename) {
+        if (filename == null || filename.isBlank()) return FILENAME_FALLBACK;
+
+        // NFC so accents are single code points that ISO-8859-1 can encode, plus ASCII
+        // equivalents for typographic punctuation that would otherwise be dropped.
+        String normalized = Normalizer.normalize(filename, Normalizer.Form.NFC)
+                .replaceAll("[‐-―]", "-")
+                .replaceAll("[‘’‚‛]", "'");
+
+        CharsetEncoder latin1Encoder = StandardCharsets.ISO_8859_1.newEncoder();
+        StringBuilder sanitized = new StringBuilder(normalized.length());
+        for (int index = 0; index < normalized.length(); index++) {
+            char current = normalized.charAt(index);
+            if (current < 0x20 || current == 0x7F || FILENAME_FORBIDDEN_CHARS.indexOf(current) >= 0) {
+                sanitized.append('_');
+            } else if (latin1Encoder.canEncode(current)) {
+                sanitized.append(current);
+            } else {
+                String ascii = Normalizer.normalize(String.valueOf(current), Normalizer.Form.NFD).replaceAll("[^\\x20-\\x7E]", "");
+                sanitized.append(ascii.isBlank() ? "_" : ascii);
+            }
+        }
+
+        String result = sanitized.toString().trim();
+        return result.isBlank() ? FILENAME_FALLBACK : result;
     }
 
     private void deleteFile(int fileId, String token){

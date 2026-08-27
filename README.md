@@ -89,6 +89,13 @@ To integrate this service with your OpenCDMP deployment, configure the deposit p
 
 For detailed integration instructions, see see the [Dataverse Configuration](https://opencdmp.github.io/getting-started/configuration/backend/deposit/#dataverse) and the [OpenCDMP Deposit Service Authentication](https://opencdmp.github.io/getting-started/configuration/backend/#deposit-service-authentication).
 
+### Per-tenant collection routing
+
+A single instance of this service can deposit into different collections of the same Dataverse
+depending on the depositing tenant, via the `/t/{alias}/api/deposit` endpoint. See
+[docs/tenant-collection-routing.md](docs/tenant-collection-routing.md) for how it works and how
+to configure it.
+
 ---
 
 ## See Also
