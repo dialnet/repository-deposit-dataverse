@@ -104,3 +104,16 @@ con `disableSystemSources: true`.
 Al publicar un plan **nuevo** de UNIRIOJA, la llamada llega a
 `POST /t/unirioja-pgd/api/deposit` y el dataset se crea en
 `{DEPOSIT_DATAVERSE_URL}/dataverses/unirioja-pgd/datasets`.
+
+## Tipo de dataset de los planes
+
+Los planes se crean en Dataverse con el tipo de dataset `outputManagementPlan`
+(DataCite `resourceTypeGeneral=OutputManagementPlan`), configurable con
+`DEPOSIT_DATAVERSE_DATASET_TYPE`. Vacío = tipo por defecto de Dataverse (`dataset`).
+
+El tipo solo se envía al crear el dataset; las versiones nuevas conservan el que
+tenían. Requisitos en Dataverse (superusuario), si no la creación falla:
+
+1. Que exista el tipo: `POST /api/datasets/datasetTypes` con `{"name":"outputManagementPlan",...}`.
+2. Que cada colección de destino lo permita:
+   `PUT /api/dataverses/<alias>/attribute/allowedDatasetTypes?value=dataset,outputManagementPlan`.

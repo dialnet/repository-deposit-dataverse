@@ -113,6 +113,9 @@ public class DataverseDepositServiceImpl implements DataverseDepositService {
 
     private String depositFirst(PlanModel planModel, String token, String collectionAliasOverride) {
         DataverseDataset dataset = this.dataverseBuilder.build(planModel);
+        // Only on creation: Dataverse fixes the type when the dataset is created and has no API to change it.
+        String datasetType = this.dataverseServiceProperties.getDatasetType();
+        if (datasetType != null && !datasetType.isBlank()) dataset.setDatasetType(datasetType.trim());
 
         String collectionAlias = (collectionAliasOverride != null && !collectionAliasOverride.isBlank())
                 ? collectionAliasOverride

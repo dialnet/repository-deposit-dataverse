@@ -9,6 +9,17 @@ public class DataverseDataset {
 
     private DatasetVersion datasetVersion;
 
+    /** Dataverse dataset type (e.g. outputManagementPlan). Null = Dataverse default ("dataset"). */
+    private String datasetType;
+
+    public String getDatasetType() {
+        return datasetType;
+    }
+
+    public void setDatasetType(String datasetType) {
+        this.datasetType = datasetType;
+    }
+
     public DatasetVersion getDatasetVersion() {
         return datasetVersion;
     }
