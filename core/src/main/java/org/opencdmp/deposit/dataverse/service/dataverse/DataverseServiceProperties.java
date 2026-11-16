@@ -24,6 +24,8 @@ public class DataverseServiceProperties {
 
     private int maxInMemorySizeInBytes;
 
+    private String datasetType;
+
     public String getLogo() {
         return logo;
     }
@@ -94,5 +96,13 @@ public class DataverseServiceProperties {
 
     public void setMaxInMemorySizeInBytes(int maxInMemorySizeInBytes) {
         this.maxInMemorySizeInBytes = maxInMemorySizeInBytes;
+    }
+
+    public String getDatasetType() {
+        return datasetType;
+    }
+
+    public void setDatasetType(String datasetType) {
+        this.datasetType = datasetType;
     }
 }

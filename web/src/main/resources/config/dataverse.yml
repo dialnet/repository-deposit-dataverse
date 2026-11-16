@@ -4,6 +4,8 @@ dataverse:
   funderReferenceCode: ${DEPOSIT_DATAVERSE_FUNDERS_CODE:funders}
   researcherReferenceCode: ${DEPOSIT_DATAVERSE_RESEARCHERS_CODE:researchers}
   maxInMemorySizeInBytes: 6554000
+  # Tipo de dataset en Dataverse para los planes. Vacio = tipo por defecto (dataset).
+  datasetType: ${DEPOSIT_DATAVERSE_DATASET_TYPE:outputManagementPlan}
   depositConfiguration:
     deposit-type: 2
     repository-id: dataverse
